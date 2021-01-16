@@ -57,12 +57,6 @@ async def on_message(message):
     
     if message.content.lower() == 'wongbot awaken':
         await message.channel.send(f'WONGBOT ACTIVATED')
-
-    if 'wongbot' in message.content:
-        if message.author.id == ADMIN:
-            await i_mode(message.channel)
-        else:
-            message.channel.send(f'TF YOU JUST SAY ABOUT ME')
     
     elif 'casino' in message.content.lower():
         await message.channel.send(f'CASINO IN BETA')
@@ -78,6 +72,14 @@ async def on_message(message):
     
     elif 'sadge' in message.content.lower() or 'pog' in message.content.lower():
         await ban_protocol(message, 'EXCESSIVE TWITCH MEMEING DETECTED', 'DEGENERATE')
+
+    # no u
+
+    elif 'wongbot' in message.content.lower():
+        if message.author.id != ADMIN:
+            await message.channel.send(f'TF YOU JUST SAY ABOUT ME')
+        else:
+            await i_mode(message.channel)
 
     # no kpop
 
@@ -150,63 +152,70 @@ async def vibecheck(ctx):
 @bot.command(help='displays stanbucks balance')
 async def balance(ctx):
     global user_amounts
-    request_id = str(ctx.message.author.id)
-    if request_id in user_amounts:
-        await ctx.send(f"BALANCE: {user_amounts[request_id]['balance']} STANBUCKS")
-    else:
-        await ctx.send(f"NO ACCOUNT. REGISTER WITH '$register'")
+    request_id = ctx.message.author.id
+    if await check_account(ctx, request_id):
+        await ctx.send(f"BALANCE: {user_amounts[str(request_id)]['balance']} STANBUCKS")
 
 starting_balance = 10000
 @bot.command(help='opt in to the stanbucks economy')
 async def register(ctx):
     global user_amounts
-    request_id = str(ctx.message.author.id)
-    if request_id not in user_amounts:
-        account = {'balance': starting_balance}
-        user_amounts[request_id] = account
-        await ctx.send(f"REGISTRATION SUCCESSFUL. YOU NOW HAVE {starting_balance} STANBUCKS")
-        print(user_amounts)
-        _save() 
+    request_id = ctx.message.author.id
+    if await check_account(ctx, request_id, display_error=False):
+        await ctx.send('YOU ALREADY HAVE AN ACCOUNT IDIOT')
     else:
-        await ctx.send("YOU ALREADY HAVE AN ACCOUNT NICE TRY IDIOT")
+        account = {'balance': starting_balance}
+        user_amounts[str(request_id)] = account
+        await ctx.send(f"REGISTRATION SUCCESSFUL. YOU NOW HAVE {starting_balance} STANBUCKS")
+        _save()
 
-# REFACTOR TO USE ADD_BALANCE AND SUBTRACT_BALANCE
 @bot.command()
 async def transfer(ctx, amount: int, other: discord.Member):
     global user_amounts
-    primary_id = str(ctx.message.author.id)
-    other_id = str(other.id)
-    if primary_id not in user_amounts:
-        await ctx.send("NO ACCOUNT. REGISTER WITH '$REGISTER'")
-    elif other_id not in amounts:
-        await ctx.send("OTHER PARTY DOES NOT HAVE AN ACCOUNT.")
-    elif user_amounts[primary_id]['balance'] < amount:
-        await ctx.send("NOT ENOUGH FUNDS TO TRANSFER")
-    else:
-        user_amounts[primary_id]['balance'] -= amount
-        user_amounts[other_id]['balance'] += amount
-        await ctx.send("TRANSACTION COMPLETED")
-    _save()
+    primary_id = ctx.message.author.id
+    other_id = other.id
+    guild = discord.utils.get(bot.guilds, name=GUILD)
+    other_member = discord.utils.get(guild.members, id=other_id)
+    if await check_account(ctx, primary_id) and await check_account(ctx, other_id):
+        if await subtract_balance(ctx, primary_id, amount):
+            # add a confirm transaction prompt
+            await add_balance(other_id, amount)
+            await ctx.send(f'{amount} STANBUCKS TRANSFERRED TO USER {other_member.nick.upper()}.')
+            _save()
 
 async def add_balance(member_id, amount):
     global user_amounts
     user_amounts[str(member_id)]['balance'] += amount
     _save()
-    return True
 
-async def subtract_balance(member_id, amount):
+async def subtract_balance(ctx, member_id, amount, display_error=True):
     global user_amounts
-    if user_amounts[str(member_id)]['balance'] < amount:
+    current_balance = user_amounts[str(member_id)]['balance']
+    if current_balance < amount or not current_balance:
+        if display_error:
+            await ctx.send('INSUFFICIENT FUNDS')
         return False
     user_amounts[str(member_id)]['balance'] -= amount
     _save()
     return True
 
+async def check_account(ctx, member_id, display_error=True):
+    global user_amounts
+    guild = discord.utils.get(bot.guilds, name=GUILD)
+    member = discord.utils.get(guild.members, id=member_id)
+    if str(member_id) not in user_amounts:
+        if display_error:
+            await ctx.send(f'USER "{member.nick.upper()}" DOES NOT HAVE AN ACCOUNT. REGISTER WITH $register.')
+        return False
+    return True
+
 def _save():
     global user_amounts
+    print(f"user_amounts saved: {user_amounts}")
     with open('user_amounts.json', 'w+') as f:
         json.dump(user_amounts, f)
 
+# clean this up
 @bot.command(name='bet', help='gamble stanbucks against ur friends')
 async def bet(ctx, *, question):
     
@@ -225,10 +234,10 @@ async def bet(ctx, *, question):
 
     # Checks for valid bet given by anyone participating
     async def bet_check(msg):
-        if msg.channel != ctx.channel:
+        if msg.channel != ctx.channel or not await check_account(ctx, msg.author.id):
             return False
 
-        valid_bet = re.compile(r"bet \d+ [12]")        
+        valid_bet = re.compile(r"bet \d+ [12]")
         
         if valid_bet.match(msg.content):
             return True
@@ -265,10 +274,10 @@ async def bet(ctx, *, question):
     options = options_msg.content.split('OR')
     option1, option2 = options[0].strip(), options[1].strip()
     await ctx.send(f"1: {option1} \n2: {option2}")
-    await ctx.send(f"TIME TO PLACE YOUR BETS. (Usage: bet [amount] [1|2])")
+    await ctx.send(f"TIME TO PLACE YOUR BETS. (Usage: bet [amount] [1/2])")
 
     # Pot values and all bets
-    option1_pot, option2_pot = 0, 0
+    option1_pot, option2_pot = 0, 0 
     placed_bets = {} # {id: [option, bet]}
 
     # Prompt for bets until timeout (same check issue as above)
@@ -285,18 +294,17 @@ async def bet(ctx, *, question):
         parsed_bet = bet_msg.content.split(' ')                 
         amount, choice = int(parsed_bet[1]), int(parsed_bet[2])
 
-        modified = await subtract_balance(bet_msg.author.id, amount)
-        if not modified:
-            await ctx.send("BET INVALID: Not enough stanbucks to bet!")
+
+        if bet_msg.author.id in placed_bets and choice != placed_bets[bet_msg.author.id][0]:
+            await ctx.send("BET INVALID: You've already bet for the other option.")
             continue
 
-        # Update betting table
+        if not await subtract_balance(ctx, bet_msg.author.id, amount):
+            continue
+
+        # Update placed bets
         if bet_msg.author.id in placed_bets:
-            if choice == placed_bets[bet_msg.author.id][0]:
-                placed_bets[bet_msg.author.id][1] += amount
-            else:
-                await ctx.send("BET INVALID: You already bet for the other option.")
-                continue
+            placed_bets[bet_msg.author.id][1] += amount
         else:
             placed_bets[bet_msg.author.id] = [choice, amount]
 
@@ -322,15 +330,15 @@ async def bet(ctx, *, question):
 
     if '1' in outcome_msg.content:
         await ctx.send(f'"{option1}" won! Wealth redistributed.')
-        winner = 1
+        winner, winning_pot, losing_pot = 1, option1_pot, option2_pot
     else:
         await ctx.send(f'"{option2}" won! Wealth redistributed.')
-        winner = 2
+        winner, winning_pot, losing_pot = 2, option2_pot, option1_pot
 
     for bettor in placed_bets.keys():
         if placed_bets[bettor][0] == winner:
-            winnings = placed_bets[bettor][1] + (placed_bets[bettor][1]/option1_pot*option2_pot)
-            await add_balance(bettor, winnings)
+            winnings = placed_bets[bettor][1] + (placed_bets[bettor][1]/winning_pot*losing_pot)
+            await add_balance(bettor, int(winnings))
 
 # Begin bot session
 bot.run(TOKEN)
