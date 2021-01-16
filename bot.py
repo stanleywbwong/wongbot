@@ -147,19 +147,21 @@ async def balance(ctx):
     else:
         await ctx.send(f"NO ACCOUNT. REGISTER WITH '$register'")
 
+starting_balance = 10000
 @bot.command(help='opt in to the stanbucks economy')
 async def register(ctx):
     global user_amounts
     request_id = str(ctx.message.author.id)
     if request_id not in user_amounts:
-        account = {'balance': 10000}
+        account = {'balance': starting_balance}
         user_amounts[request_id] = account
-        await ctx.send("REGISTRATION SUCCESSFUL")
+        await ctx.send(f"REGISTRATION SUCCESSFUL. YOU NOW HAVE {starting_balance} STANBUCKS")
         print(user_amounts)
         _save() 
     else:
         await ctx.send("YOU ALREADY HAVE AN ACCOUNT NICE TRY IDIOT")
 
+# REFACTOR TO USE ADD_BALANCE AND SUBTRACT_BALANCE
 @bot.command()
 async def transfer(ctx, amount: int, other: discord.Member):
     global user_amounts
@@ -170,12 +172,26 @@ async def transfer(ctx, amount: int, other: discord.Member):
     elif other_id not in amounts:
         await ctx.send("OTHER PARTY DOES NOT HAVE AN ACCOUNT.")
     elif user_amounts[primary_id]['balance'] < amount:
-        await ctx.send("NO OVERDRAFTING GTFO")
+        await ctx.send("NOT ENOUGH FUNDS TO TRANSFER")
     else:
         user_amounts[primary_id]['balance'] -= amount
         user_amounts[other_id]['balance'] += amount
         await ctx.send("TRANSACTION COMPLETED")
     _save()
+
+async def add_balance(member_id, amount):
+    global user_amounts
+    user_amounts[str(member_id)]['balance'] += amount
+    _save()
+    return True
+
+async def subtract_balance(member_id, amount):
+    global user_amounts
+    if user_amounts[str(member_id)]['balance'] < amount:
+        return False
+    user_amounts[str(member_id)]['balance'] -= amount
+    _save()
+    return True
 
 def _save():
     global user_amounts
@@ -185,47 +201,96 @@ def _save():
 
 @bot.command(name='bet', help='gamble stanbucks against ur friends')
 async def bet(ctx, *, question):
-    await ctx.send(f"Question: {question}")
-    await ctx.send(f"Provide two options to bet on (split with OR):")
-
-    # checks that option provider is bet creator
-    def check(msg):
-        return msg.author == ctx.author and msg.channel == ctx.channel
     
-    # prompt for options
-    try:
-        options_string = await bot.wait_for('message', check=check, timeout=10)
-    except asyncio.TimeoutError:
-        await ctx.send("Timed out. Try again.")
-        return
+    # Checks for valid options given by the bet creator
+    async def options_check(msg):
+        if msg.author != ctx.author or msg.channel != ctx.channel:
+            return False
 
-    options = options_string.content.split('OR')
-    option1, option2 = options[0].strip(), options[1].strip()
-    await ctx.send(f"Option 1: {option1} \nOption 2: {option2}")
-    await ctx.send(f"TIME TO PLACE YOUR BETS. (Usage: bet [amount] [1|2])")
+        valid_options = re.compile(r".*OR.*")
 
-    def bet_check(msg):
-        #print('got to bet check')
-        valid_bet = re.compile(r"bet \d+ [12]")
-        #print(valid_bet.match(msg.content) != None)
-        return valid_bet.match(msg.content) != None
+        if valid_options.match(msg.content):
+            return True
+        else:
+            await ctx.send("Enter two options, separated by 'OR', idiot")
+            return False
 
-    option1_pot, option2_pot = 0, 0
-    placed_bets = {} # id: [option, bet]
+    # Checks for valid bet given by anyone participating
+    async def bet_check(msg):
+        if msg.channel != ctx.channel:
+            return False
+
+        valid_bet = re.compile(r"bet \d+ [12]")        
+        
+        if valid_bet.match(msg.content):
+            return True
+        else:
+            await ctx.send("Usage: bet [amount] [1|2]")
+            return False
+
+    # Checks for valid outcome given by the bet creator
+    async def outcome_check(msg):
+        if msg.author != ctx.author or msg.channel != ctx.channel:
+            return False
+
+        valid_outcome = re.compile(r"outcome [12]")
+        
+        if valid_outcome.match(msg.content):
+            return True
+        else:
+            await ctx.send(f'Enter "outcome 1" or "outcome 2"')
+            return False
+
+    await ctx.send(f"Question: {question}?")
+    await ctx.send(f"Provide two options to bet on (separate with OR):")
+    
+    # Prompt for options (the check is ugly, find a fix with using the wait_for check param)
     while True:
         try:
-            bet_string = await bot.wait_for('message', check=bet_check, timeout=20)
-            print(bet_string.content)
+            options_msg = await bot.wait_for('message', timeout=20)
+            check = await options_check(options_msg)
+            if check: break
         except asyncio.TimeoutError:
-            await ctx.send("No bets received in 10 seconds. Betting is now closed.")
+            await ctx.send("Timed out. Try again.")
+            return
+
+    options = options_msg.content.split('OR')
+    option1, option2 = options[0].strip(), options[1].strip()
+    await ctx.send(f"1: {option1} \n2: {option2}")
+    await ctx.send(f"TIME TO PLACE YOUR BETS. (Usage: bet [amount] [1|2])")
+
+    # Pot values and all bets
+    option1_pot, option2_pot = 0, 0
+    placed_bets = {} # {id: [option, bet]}
+
+    # Prompt for bets until timeout (same check issue as above)
+    while True:
+        try:
+            #print('got here')
+            bet_msg = await bot.wait_for('message', timeout=20)
+            check = await bet_check(bet_msg)
+            if not check: continue
+        except asyncio.TimeoutError:
+            await ctx.send("No bets received in 20 seconds - betting closed. Awaiting outcome...")
             break
 
-        parsed_bet = bet_string.content.split(' ')
+        parsed_bet = bet_msg.content.split(' ')                 
         amount, choice = int(parsed_bet[1]), int(parsed_bet[2])
-        if bet_string.author.id in placed_bets:
-            placed_bets[bet_string.author.id][1] += amount
+
+        modified = await subtract_balance(bet_msg.author.id, amount)
+        if not modified:
+            await ctx.send("BET INVALID: Not enough stanbucks to bet!")
+            continue
+
+        # Update betting table
+        if bet_msg.author.id in placed_bets:
+            if choice == placed_bets[bet_msg.author.id][0]:
+                placed_bets[bet_msg.author.id][1] += amount
+            else:
+                await ctx.send("BET INVALID: You already bet for the other option.")
+                continue
         else:
-            placed_bets[bet_string.author.id] = [choice, amount]
+            placed_bets[bet_msg.author.id] = [choice, amount]
 
         if choice == 1:
             option1_pot += amount
@@ -234,14 +299,30 @@ async def bet(ctx, *, question):
 
         pot_fraction = option1_pot/(option1_pot+option2_pot)
         
+        # Display bet status
         await ctx.send(
-            f"Total bet placed by {bet_string.author.nick}: {placed_bets[bet_string.author.id][1]}\n"
+            f"Total bet placed by {bet_msg.author.nick}: {placed_bets[bet_msg.author.id][1]}\n"
             f"Total pot: {option1_pot+option2_pot}\n"
-            f"Pot split: {100*pot_fraction}% - {100*(1-pot_fraction)}%"
+            f"Pot split: {round(100*pot_fraction, 2)}% - {round(100*(1-pot_fraction), 2)}%"
             )
 
-    outcome_string = await bot.wait_for('message', check=check)
-    # Resolve bets
+    # Resolve bets (same check issue)
+    while True:
+        outcome_msg = await bot.wait_for('message')
+        check = await outcome_check(outcome_msg)
+        if check: break
+
+    if '1' in outcome_msg.content:
+        await ctx.send(f'"{option1}" won! Wealth redistributed.')
+        winner = 1
+    else:
+        await ctx.send(f'"{option2}" won! Wealth redistributed.')
+        winner = 2
+
+    for bettor in placed_bets.keys():
+        if placed_bets[bettor][0] == winner:
+            winnings = placed_bets[bettor][1] + (placed_bets[bettor][1]/option1_pot*option2_pot)
+            await add_balance(bettor, winnings)
 
 # Begin bot session
 bot.run(TOKEN)
