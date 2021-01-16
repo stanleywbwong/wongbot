@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN').strip('{}')
 GUILD = os.getenv('DISCORD_GUILD').strip('{}')
+ADMIN = int(os.getenv('SUPER_ADMIN').strip('{}'))
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$', intents=intents)
@@ -56,9 +57,15 @@ async def on_message(message):
     
     if message.content.lower() == 'wongbot awaken':
         await message.channel.send(f'WONGBOT ACTIVATED')
+
+    if 'wongbot' in message.content:
+        if message.author.id == ADMIN:
+            await i_mode(message.channel)
+        else:
+            message.channel.send(f'TF YOU JUST SAY ABOUT ME')
     
     elif 'casino' in message.content.lower():
-        await message.channel.send(f'CASINO UNDER DEVELOPMENT')
+        await message.channel.send(f'CASINO IN BETA')
 
     elif 'anime' in message.content.lower() or 'manga' in message.content.lower():
         await ban_protocol(message, 'WEEB DETECTED', 'WEEB')
@@ -71,35 +78,39 @@ async def on_message(message):
     
     elif 'sadge' in message.content.lower() or 'pog' in message.content.lower():
         await ban_protocol(message, 'EXCESSIVE TWITCH MEMEING DETECTED', 'DEGENERATE')
-    
-    elif 'wongbot' in message.content.lower():
-        await message.channel.send(f'TF YOU JUST SAY ABOUT ME')
 
     # no kpop
 
     await bot.process_commands(message)
 
-async def ban_protocol(message, reason, offender):
+async def ban_protocol(message, reason, offender_type):
     if message.author.guild_permissions.administrator:
         return
     await message.channel.send(f'{reason}. BAN COMMENCING IN 10 SECONDS.')
-    guild = discord.utils.get(bot.guilds, name=GUILD)
-    #criminal = discord.utils.get(guild.members, name=message.author)
     for i in range(10, -1, -1):
         await message.channel.send(content=str(i), delete_after=1)
         await asyncio.sleep(1)
-    await message.channel.send(f"TIME'S UP. GOODBYE {offender}", delete_after=2)
+    await message.channel.send(f"TIME'S UP. GOODBYE {offender_type}", delete_after=2)
 
     # ban
-    #await guild.ban(message.author, reason='WEEB DETECTED', delete_message_days=0)
+    #await message.author.ban(delete_message_days=0)
 
     # kick
-    await guild.kick(message.author)
+    await message.author.kick()
 
     # remove from voice
-    #await criminal.edit(voice_channel=None)
+    #await message.author.edit(voice_channel=None)
     
     await message.channel.send(f'{message.author} PURGED, GOOD WORK TEAM')
+
+async def i_mode(channel):
+    print('i_mode enabled')
+    while True:
+        echo = input()
+        if 'break' in echo:
+            break
+        await channel.send(echo)
+    print('i_mode disabled')
 
 ############################
 ###### ERROR HANDLING ######
@@ -140,8 +151,6 @@ async def vibecheck(ctx):
 async def balance(ctx):
     global user_amounts
     request_id = str(ctx.message.author.id)
-    print(f"balance requested by {request_id}")
-    print(f"available user_amounts: {user_amounts}")
     if request_id in user_amounts:
         await ctx.send(f"BALANCE: {user_amounts[request_id]['balance']} STANBUCKS")
     else:
@@ -195,7 +204,6 @@ async def subtract_balance(member_id, amount):
 
 def _save():
     global user_amounts
-    print("user amounts to be saved: ", user_amounts)
     with open('user_amounts.json', 'w+') as f:
         json.dump(user_amounts, f)
 
@@ -267,7 +275,7 @@ async def bet(ctx, *, question):
     while True:
         try:
             #print('got here')
-            bet_msg = await bot.wait_for('message', timeout=20)
+            bet_msg = await bot.wait_for('message', timeout=30)
             check = await bet_check(bet_msg)
             if not check: continue
         except asyncio.TimeoutError:
