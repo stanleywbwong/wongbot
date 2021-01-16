@@ -54,29 +54,41 @@ async def on_message(message):
     if message.author == bot.user:
         return
     
-    if message.content == 'wongbot awaken':
+    if message.content.lower() == 'wongbot awaken':
         await message.channel.send(f'WONGBOT ACTIVATED')
     
-    if 'casino' in message.content:
+    elif 'casino' in message.content.lower():
         await message.channel.send(f'CASINO UNDER DEVELOPMENT')
 
-    if 'anime' in message.content.lower() or 'manga' in message.content.lower():
-        await message.channel.send(f'WEEB DETECTED. BAN COMMENCING IN 10 SECONDS')
-        await weeb_ban(message)
+    elif 'anime' in message.content.lower() or 'manga' in message.content.lower():
+        await ban_protocol(message, 'WEEB DETECTED', 'WEEB')
 
-    if 'catgirl' in message.content:
-        await message.channel.send(f'NO CATGIRLS ALLOWED. BAN COMMENCING IN 10 SECONDS')
-        await weeb_ban(message)
+    elif 'catgirl' in message.content.lower():
+        await ban_protocol(message, 'NO CATGIRLS ALLOWED', 'DEGENERATE')
+
+    elif 'bunnygirl' in message.content.lower():
+        await ban_protocol(message, 'NO BUNNYGIRLS ALLOWED', 'DEGENERATE')        
+    
+    elif 'sadge' in message.content.lower() or 'pog' in message.content.lower():
+        await ban_protocol(message, 'EXCESSIVE TWITCH MEMEING DETECTED', 'DEGENERATE')
+    
+    elif 'wongbot' in message.content.lower():
+        await message.channel.send(f'TF YOU JUST SAY ABOUT ME')
+
+    # no kpop
 
     await bot.process_commands(message)
 
-async def weeb_ban(message):
+async def ban_protocol(message, reason, offender):
+    if message.author.guild_permissions.administrator:
+        return
+    await message.channel.send(f'{reason}. BAN COMMENCING IN 10 SECONDS.')
     guild = discord.utils.get(bot.guilds, name=GUILD)
-    offender = discord.utils.get(guild.members, name=message.author)
+    #criminal = discord.utils.get(guild.members, name=message.author)
     for i in range(10, -1, -1):
         await message.channel.send(content=str(i), delete_after=1)
         await asyncio.sleep(1)
-    await message.channel.send(f"TIME'S UP. GOODBYE WEEB", delete_after=2)
+    await message.channel.send(f"TIME'S UP. GOODBYE {offender}", delete_after=2)
 
     # ban
     #await guild.ban(message.author, reason='WEEB DETECTED', delete_message_days=0)
@@ -85,9 +97,9 @@ async def weeb_ban(message):
     await guild.kick(message.author)
 
     # remove from voice
-    #await offender.edit(voice_channel=None)
+    #await criminal.edit(voice_channel=None)
     
-    await message.channel.send(f'{message.author} REMOVED, GOOD WORK TEAM')
+    await message.channel.send(f'{message.author} PURGED, GOOD WORK TEAM')
 
 ############################
 ###### ERROR HANDLING ######
@@ -131,7 +143,7 @@ async def balance(ctx):
     print(f"balance requested by {request_id}")
     print(f"available user_amounts: {user_amounts}")
     if request_id in user_amounts:
-        await ctx.send("BALANCE: {} STANBUCKS".format(user_amounts[request_id]['balance']))
+        await ctx.send(f"BALANCE: {user_amounts[request_id]['balance']} STANBUCKS")
     else:
         await ctx.send(f"NO ACCOUNT. REGISTER WITH '$register'")
 
@@ -190,33 +202,46 @@ async def bet(ctx, *, question):
     options = options_string.content.split('OR')
     option1, option2 = options[0].strip(), options[1].strip()
     await ctx.send(f"Option 1: {option1} \nOption 2: {option2}")
-    await ctx.send(f"TIME TO PLACE YOUR BETS")
+    await ctx.send(f"TIME TO PLACE YOUR BETS. (Usage: bet [amount] [1|2])")
 
     def bet_check(msg):
-        print('got to bet check')
-        valid_bet = re.compile(r"bet \d+")
-        print(f'valid_bet: {valid_bet}')
+        #print('got to bet check')
+        valid_bet = re.compile(r"bet \d+ [12]")
+        #print(valid_bet.match(msg.content) != None)
         return valid_bet.match(msg.content) != None
 
-    pot = 0
-    placed_bets = {}
+    option1_pot, option2_pot = 0, 0
+    placed_bets = {} # id: [option, bet]
     while True:
         try:
             bet_string = await bot.wait_for('message', check=bet_check, timeout=20)
-            placed_bets[bet_strng.author.id]
-            print(f"bets placed so far: {placed_bets}")
+            print(bet_string.content)
         except asyncio.TimeoutError:
             await ctx.send("No bets received in 10 seconds. Betting is now closed.")
             break
 
+        parsed_bet = bet_string.content.split(' ')
+        amount, choice = int(parsed_bet[1]), int(parsed_bet[2])
+        if bet_string.author.id in placed_bets:
+            placed_bets[bet_string.author.id][1] += amount
+        else:
+            placed_bets[bet_string.author.id] = [choice, amount]
 
+        if choice == 1:
+            option1_pot += amount
+        else:
+            option2_pot += amount
 
+        pot_fraction = option1_pot/(option1_pot+option2_pot)
+        
+        await ctx.send(
+            f"Total bet placed by {bet_string.author.nick}: {placed_bets[bet_string.author.id][1]}\n"
+            f"Total pot: {option1_pot+option2_pot}\n"
+            f"Pot split: {100*pot_fraction}% - {100*(1-pot_fraction)}%"
+            )
 
-
-async def options(ctx, option_string):
-    parsed_options = option_string.split(';')
-    option1, option2 = parsed_options[0].strip(), parsed_options[1].strip()
-    print(option1, option2)
+    outcome_string = await bot.wait_for('message', check=check)
+    # Resolve bets
 
 # Begin bot session
 bot.run(TOKEN)
