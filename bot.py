@@ -2,10 +2,9 @@
 
 import os
 
-import discord
-import asyncio
-import json
-import re
+import discord, asyncio
+import json, re
+from datetime import datetime
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -149,24 +148,31 @@ async def vibecheck(ctx):
 ##### ECONOMY COMMANDS #####
 ############################
 
-@bot.command(help='displays stanbucks balance')
+# TODO: Log balance calls instead of printing
+@bot.command(help='displays wongbucks balance')
 async def balance(ctx):
     global user_amounts
+    guild = discord.utils.get(bot.guilds, name=GUILD)
     request_id = ctx.message.author.id
+    requester = discord.utils.get(guild.members, id=request_id)
+    print(f"Balance requested by {request_id}: {requester.name}/{requester.nick}")
     if await check_account(ctx, request_id):
-        await ctx.send(f"BALANCE: {user_amounts[str(request_id)]['balance']} STANBUCKS")
+        await ctx.send(f"BALANCE: {user_amounts[str(request_id)]['balance']} WONGBUCKS")
 
+# TODO: Declare constants elsewhere
 starting_balance = 10000
-@bot.command(help='opt in to the stanbucks economy')
+@bot.command(help='opt in to the wongbucks economy')
 async def register(ctx):
     global user_amounts
     request_id = ctx.message.author.id
     if await check_account(ctx, request_id, display_error=False):
         await ctx.send('YOU ALREADY HAVE AN ACCOUNT IDIOT')
     else:
-        account = {'balance': starting_balance}
+        account = {'balance': starting_balance, 
+                    'nickname': ctx.message.author.nick, 
+                    'last_daily': datetime(2000, 1, 1)}
         user_amounts[str(request_id)] = account
-        await ctx.send(f"REGISTRATION SUCCESSFUL. YOU NOW HAVE {starting_balance} STANBUCKS")
+        await ctx.send(f"REGISTRATION SUCCESSFUL. YOU NOW HAVE {starting_balance} WONGBUCKS")
         _save()
 
 @bot.command()
@@ -178,9 +184,9 @@ async def transfer(ctx, amount: int, other: discord.Member):
     other_member = discord.utils.get(guild.members, id=other_id)
     if await check_account(ctx, primary_id) and await check_account(ctx, other_id):
         if await subtract_balance(ctx, primary_id, amount):
-            # add a confirm transaction prompt
+            # TODO: Add a confirm transaction prompt
             await add_balance(other_id, amount)
-            await ctx.send(f'{amount} STANBUCKS TRANSFERRED TO USER {other_member.nick.upper()}.')
+            await ctx.send(f'{amount} WONGBUCKS TRANSFERRED TO USER {other_member.nick.upper()}.')
             _save()
 
 async def add_balance(member_id, amount):
@@ -215,8 +221,8 @@ def _save():
     with open('user_amounts.json', 'w+') as f:
         json.dump(user_amounts, f)
 
-# clean this up
-@bot.command(name='bet', help='gamble stanbucks against ur friends')
+# TODO: Refactor a little
+@bot.command(name='bet', help='gamble wongbucks against ur friends')
 async def bet(ctx, *, question):
     
     # Checks for valid options given by the bet creator
@@ -237,6 +243,7 @@ async def bet(ctx, *, question):
         if msg.channel != ctx.channel or not await check_account(ctx, msg.author.id):
             return False
 
+        #check this
         valid_bet = re.compile(r"bet \d+ [12]")
         
         if valid_bet.match(msg.content):
@@ -261,7 +268,7 @@ async def bet(ctx, *, question):
     await ctx.send(f"Question: {question}?")
     await ctx.send(f"Provide two options to bet on (separate with OR):")
     
-    # Prompt for options (the check is ugly, find a fix with using the wait_for check param)
+    # Prompt for options (TODO: the check is ugly, find a fix with using the wait_for check param)
     while True:
         try:
             options_msg = await bot.wait_for('message', timeout=20)
@@ -280,7 +287,7 @@ async def bet(ctx, *, question):
     option1_pot, option2_pot = 0, 0 
     placed_bets = {} # {id: [option, bet]}
 
-    # Prompt for bets until timeout (same check issue as above)
+    # Prompt for bets until timeout (TODO: same check issue as above)
     while True:
         try:
             #print('got here')
@@ -293,7 +300,6 @@ async def bet(ctx, *, question):
 
         parsed_bet = bet_msg.content.split(' ')                 
         amount, choice = int(parsed_bet[1]), int(parsed_bet[2])
-
 
         if bet_msg.author.id in placed_bets and choice != placed_bets[bet_msg.author.id][0]:
             await ctx.send("BET INVALID: You've already bet for the other option.")
@@ -322,7 +328,7 @@ async def bet(ctx, *, question):
             f"Pot split: {round(100*pot_fraction, 2)}% - {round(100*(1-pot_fraction), 2)}%"
             )
 
-    # Resolve bets (same check issue)
+    # Resolve bets (TODO: same check issue)
     while True:
         outcome_msg = await bot.wait_for('message')
         check = await outcome_check(outcome_msg)
