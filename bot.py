@@ -24,10 +24,10 @@ async def on_ready():
 
     guild = discord.utils.get(bot.guilds, name=GUILD)
 
-    print(
-        f'{bot.user} is connected to the following guild:\n'
-        f'{guild.name}(id: {guild.id})'
-    )
+    await bot.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.watching, 
+            name=f'over {guild.name} closely'))
 
     # Load currency data from json
     global user_accounts
@@ -169,14 +169,15 @@ async def register(ctx):
         await ctx.send('YOU ALREADY HAVE AN ACCOUNT IDIOT')
     else:
         account = {'balance': starting_balance,
-                    'nickname': ctx.message.author.nick, 
+                    'name': ctx.message.author.name, 
                     'last_daily': '01/01/2000, 00:00:00'}
         user_accounts[str(request_id)] = account
         await ctx.send(f"REGISTRATION SUCCESSFUL. YOU NOW HAVE {starting_balance} WONGBUCKS")
         _save()
 
-# TODO: Log dailies instead of printing
+# TODO: Log dailies instead of printing, declare constant elsewhere
 daily_amount = 2000
+daily_wait = 12 # hours
 @bot.command(help='d a i l y')
 async def daily(ctx):
     global user_accounts
@@ -188,17 +189,22 @@ async def daily(ctx):
         now = datetime.now()
         last_daily = datetime.strptime(user_accounts[str(request_id)]['last_daily'], '%m/%d/%Y, %H:%M:%S')
         time_since = now - last_daily
-        if time_since >= timedelta(hours=12): # TODO: Refactor constant
-            await ctx.send(f'Daily collected! {daily_amount} WONGBUCKS added to your account!')
+        if time_since >= timedelta(hours=daily_wait): # TODO: Refactor constant
             await add_balance(request_id, daily_amount)
             now_string = now.strftime('%m/%d/%Y, %H:%M:%S')
             user_accounts[str(request_id)]['last_daily'] = now_string
+            await ctx.send(f'Daily collected! {daily_amount} WONGBUCKS added to your account!')
             _save()
         else:
-            to_wait = timedelta(hours=12) - time_since
+            to_wait = timedelta(hours=daily_wait) - time_since
             hours, minutes = to_wait.seconds//3600, to_wait.seconds%3600//60
             wait_string = f"{hours} hours, {minutes} minutes" if hours else f"{minutes} minutes"
             await ctx.send(f'You must wait another {wait_string} before your next daily!')
+
+# TODO: Log top call instead of printing
+@bot.command(help='compete for biggest number')
+async def top(ctx):
+    pass
 
 @bot.command()
 async def transfer(ctx, amount: int, other: discord.Member):
