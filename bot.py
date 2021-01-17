@@ -4,7 +4,7 @@ import os
 
 import discord, asyncio
 import json, re
-from datetime import datetime
+from datetime import datetime, timedelta
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -30,14 +30,14 @@ async def on_ready():
     )
 
     # Load currency data from json
-    global user_amounts
+    global user_accounts
     try:
-        with open('user_amounts.json') as f:
-            user_amounts = json.load(f)
-            print(f"loaded user amounts: {user_amounts}")
+        with open('user_accounts.json') as f:
+            user_accounts = json.load(f)
+            print(f"loaded user amounts: {user_accounts}")
     except FileNotFoundError:
-        print("Could not load user_amounts.json")
-        user_amounts = {}
+        print("Could not load user_accounts.json")
+        user_accounts = {}
 
 ############################
 ###### GENERAL EVENTS ######
@@ -151,33 +151,58 @@ async def vibecheck(ctx):
 # TODO: Log balance calls instead of printing
 @bot.command(help='displays wongbucks balance')
 async def balance(ctx):
-    global user_amounts
+    global user_accounts
     guild = discord.utils.get(bot.guilds, name=GUILD)
     request_id = ctx.message.author.id
     requester = discord.utils.get(guild.members, id=request_id)
     print(f"Balance requested by {request_id}: {requester.name}/{requester.nick}")
     if await check_account(ctx, request_id):
-        await ctx.send(f"BALANCE: {user_amounts[str(request_id)]['balance']} WONGBUCKS")
+        await ctx.send(f"BALANCE: {user_accounts[str(request_id)]['balance']} WONGBUCKS")
 
 # TODO: Declare constants elsewhere
 starting_balance = 10000
 @bot.command(help='opt in to the wongbucks economy')
 async def register(ctx):
-    global user_amounts
+    global user_accounts
     request_id = ctx.message.author.id
     if await check_account(ctx, request_id, display_error=False):
         await ctx.send('YOU ALREADY HAVE AN ACCOUNT IDIOT')
     else:
-        account = {'balance': starting_balance, 
+        account = {'balance': starting_balance,
                     'nickname': ctx.message.author.nick, 
-                    'last_daily': datetime(2000, 1, 1)}
-        user_amounts[str(request_id)] = account
+                    'last_daily': '01/01/2000, 00:00:00'}
+        user_accounts[str(request_id)] = account
         await ctx.send(f"REGISTRATION SUCCESSFUL. YOU NOW HAVE {starting_balance} WONGBUCKS")
         _save()
 
+# TODO: Log dailies instead of printing
+daily_amount = 2000
+@bot.command(help='d a i l y')
+async def daily(ctx):
+    global user_accounts
+    guild = discord.utils.get(bot.guilds, name=GUILD)
+    request_id = ctx.message.author.id
+    requester = discord.utils.get(guild.members, id=request_id)
+    print(f"Daily requested by {request_id}: {requester.name}/{requester.nick}")
+    if await check_account(ctx, request_id):
+        now = datetime.now()
+        last_daily = datetime.strptime(user_accounts[str(request_id)]['last_daily'], '%m/%d/%Y, %H:%M:%S')
+        time_since = now - last_daily
+        if time_since >= timedelta(hours=12): # TODO: Refactor constant
+            await ctx.send(f'Daily collected! {daily_amount} WONGBUCKS added to your account!')
+            await add_balance(request_id, daily_amount)
+            now_string = now.strftime('%m/%d/%Y, %H:%M:%S')
+            user_accounts[str(request_id)]['last_daily'] = now_string
+            _save()
+        else:
+            to_wait = timedelta(hours=12) - time_since
+            hours, minutes = to_wait.seconds//3600, to_wait.seconds%3600//60
+            wait_string = f"{hours} hours, {minutes} minutes" if hours else f"{minutes} minutes"
+            await ctx.send(f'You must wait another {wait_string} before your next daily!')
+
 @bot.command()
 async def transfer(ctx, amount: int, other: discord.Member):
-    global user_amounts
+    global user_accounts
     primary_id = ctx.message.author.id
     other_id = other.id
     guild = discord.utils.get(bot.guilds, name=GUILD)
@@ -190,36 +215,36 @@ async def transfer(ctx, amount: int, other: discord.Member):
             _save()
 
 async def add_balance(member_id, amount):
-    global user_amounts
-    user_amounts[str(member_id)]['balance'] += amount
+    global user_accounts
+    user_accounts[str(member_id)]['balance'] += amount
     _save()
 
 async def subtract_balance(ctx, member_id, amount, display_error=True):
-    global user_amounts
-    current_balance = user_amounts[str(member_id)]['balance']
+    global user_accounts
+    current_balance = user_accounts[str(member_id)]['balance']
     if current_balance < amount or not current_balance:
         if display_error:
             await ctx.send('INSUFFICIENT FUNDS')
         return False
-    user_amounts[str(member_id)]['balance'] -= amount
+    user_accounts[str(member_id)]['balance'] -= amount
     _save()
     return True
 
 async def check_account(ctx, member_id, display_error=True):
-    global user_amounts
+    global user_accounts
     guild = discord.utils.get(bot.guilds, name=GUILD)
     member = discord.utils.get(guild.members, id=member_id)
-    if str(member_id) not in user_amounts:
+    if str(member_id) not in user_accounts:
         if display_error:
             await ctx.send(f'USER "{member.nick.upper()}" DOES NOT HAVE AN ACCOUNT. REGISTER WITH $register.')
         return False
     return True
 
 def _save():
-    global user_amounts
-    print(f"user_amounts saved: {user_amounts}")
-    with open('user_amounts.json', 'w+') as f:
-        json.dump(user_amounts, f)
+    global user_accounts
+    print(f"user_accounts saved: {user_accounts}")
+    with open('user_accounts.json', 'w+') as f:
+        json.dump(user_accounts, f)
 
 # TODO: Refactor a little
 @bot.command(name='bet', help='gamble wongbucks against ur friends')
