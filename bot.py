@@ -51,7 +51,7 @@ async def on_member_join(member):
     general = discord.utils.get(guild.channels, name='general')
     await general.send(f'{member.name} HAS BEEN ASSIMILATED.')
 
-# TODO: refactor this
+# TODO: refactor this, also only respond in bot-spam
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -82,7 +82,7 @@ async def on_message(message):
 
     elif 'wongbot' in message.content.lower():
         if message.author.id != ADMIN:
-            await message.channel.send(f'TF YOU JUST SAY ABOUT ME')
+            await message.channel.send(f'TF YOU JUST SAY ABOUT ME {message.author.name.upper()}')
         else:
             await _i_mode(message.channel)
 
@@ -90,6 +90,7 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
+# dm invite after kicking lol
 async def _ban_protocol(message, reason, offender_type):
     if message.author.guild_permissions.administrator:
         return
