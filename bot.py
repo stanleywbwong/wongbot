@@ -29,6 +29,7 @@ async def on_ready():
             type=discord.ActivityType.watching, 
             name=f'over {guild.name} closely'))
 
+    """
     # Load currency data from json
     global user_accounts
     try:
@@ -38,6 +39,7 @@ async def on_ready():
     except FileNotFoundError:
         print("Could not load user_accounts.json")
         user_accounts = {}
+    """
 
 ############################
 ###### GENERAL EVENTS ######
@@ -73,7 +75,9 @@ async def on_message(message):
     elif 'bunnygirl' in message.content.lower():
         await _ban_protocol(message, 'NO BUNNYGIRLS ALLOWED', 'DEGENERATE')        
     
-    elif 'sadge' in message.content.lower() or 'pog' in message.content.lower():
+    elif 'sadge' in message.content.lower() or \
+        'pog' in message.content.lower() or \
+        'weirdchamp' in message.content.lower():
         await _ban_protocol(message, 'EXCESSIVE TWITCH MEMEING DETECTED', 'DEGENERATE')
 
     elif 'wongbot' in message.content.lower():
@@ -82,7 +86,7 @@ async def on_message(message):
         else:
             await _i_mode(message.channel)
 
-    # no kpop
+    # TODO: Handle no kpop and kappa
 
     await bot.process_commands(message)
 
@@ -149,6 +153,7 @@ async def vibecheck(ctx):
 ############################
 ##### ECONOMY COMMANDS #####
 ############################
+# NOTE: Deprecated - functions moved to macaBot
 
 # TODO: Log balance calls instead of printing
 @bot.command(help='displays wongbucks balance')
@@ -207,7 +212,7 @@ async def daily(ctx):
 leaderboard_size=5
 @bot.command(help='compete for biggest number')
 async def top(ctx):
-
+    print('got here')
     # TODO: replace with nice-looking embed (ask ron), use nicknames instead of usernames?
     def format_leaderboard(accounts, size):
         formatted_top = '-----------  LEADERBOARD  -----------\n'
