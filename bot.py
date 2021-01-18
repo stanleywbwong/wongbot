@@ -158,7 +158,7 @@ async def balance(ctx):
     request_id = ctx.message.author.id
     requester = discord.utils.get(guild.members, id=request_id)
     print(f"Balance requested by {request_id}: {requester.name}/{requester.nick}")
-    if await check_account(ctx, request_id):
+    if await _check_account(ctx, request_id):
         await ctx.send(f"BALANCE: {user_accounts[str(request_id)]['balance']} WONGBUCKS")
 
 # TODO: Declare constants elsewhere
@@ -167,7 +167,7 @@ starting_balance = 10000
 async def register(ctx):
     global user_accounts
     request_id = ctx.message.author.id
-    if await check_account(ctx, request_id, display_error=False):
+    if await _check_account(ctx, request_id, display_error=False):
         await ctx.send('YOU ALREADY HAVE AN ACCOUNT IDIOT')
     else:
         account = {'balance': starting_balance,
@@ -187,7 +187,7 @@ async def daily(ctx):
     request_id = ctx.message.author.id
     requester = discord.utils.get(guild.members, id=request_id)
     print(f"Daily requested by {request_id}: {requester.name}/{requester.nick}")
-    if await check_account(ctx, request_id):
+    if await _check_account(ctx, request_id):
         now = datetime.now()
         last_daily = datetime.strptime(user_accounts[str(request_id)]['last_daily'], '%m/%d/%Y, %H:%M:%S')
         time_since = now - last_daily
@@ -235,7 +235,7 @@ async def transfer(ctx, amount: int, other: discord.Member):
     other_id = other.id
     guild = discord.utils.get(bot.guilds, name=GUILD)
     other_member = discord.utils.get(guild.members, id=other_id)
-    if await check_account(ctx, primary_id) and await check_account(ctx, other_id):
+    if await _check_account(ctx, primary_id) and await _check_account(ctx, other_id):
         if await _subtract_balance(ctx, primary_id, amount):
             # TODO: Add a confirm transaction prompt
             await _add_balance(other_id, amount)
@@ -293,7 +293,7 @@ async def bet(ctx, *, question):
 
     # Checks for valid bet given by anyone participating
     async def bet_check(msg):
-        if msg.channel != ctx.channel or not await check_account(ctx, msg.author.id):
+        if msg.channel != ctx.channel or not await _check_account(ctx, msg.author.id):
             return False
 
         #check this
