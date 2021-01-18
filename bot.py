@@ -202,9 +202,31 @@ async def daily(ctx):
             await ctx.send(f'You must wait another {wait_string} before your next daily!')
 
 # TODO: Log top call instead of printing
+leaderboard_size=5
 @bot.command(help='compete for biggest number')
 async def top(ctx):
-    pass
+
+    # TODO: replace with nice-looking embed (ask ron), use nicknames instead of usernames?
+    def format_leaderboard(accounts, size):
+        formatted_top = '-----------  LEADERBOARD  -----------\n'
+        # TODO: size assumes less than size of participating accounts
+        for i, account in enumerate(accounts[:size]):
+            formatted_top += f"{str(i+1)}.\t {account[1]['name']}  \u2014  ${account[1]['balance']}\n"
+        formatted_top += '-------------------------------------------\n'
+        return formatted_top 
+
+    global user_accounts
+    guild = discord.utils.get(bot.guilds, name=GUILD)
+    request_id = ctx.message.author.id
+    requester = discord.utils.get(guild.members, id=request_id)
+    print(f'Leaderboard requested by {request_id}: {requester.name}/{requester.nick}')
+    sorted_accounts = [account_id for account_id in sorted(user_accounts.items(),\
+                         key=lambda x: x[1]['balance'], reverse=True)]
+
+    await ctx.send(format_leaderboard(sorted_accounts, leaderboard_size))
+
+
+
 
 @bot.command()
 async def transfer(ctx, amount: int, other: discord.Member):
