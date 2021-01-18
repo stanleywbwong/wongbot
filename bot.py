@@ -49,6 +49,7 @@ async def on_member_join(member):
     general = discord.utils.get(guild.channels, name='general')
     await general.send(f'{member.name} HAS BEEN ASSIMILATED.')
 
+# TODO: refactor this
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -57,34 +58,35 @@ async def on_message(message):
     if message.content.lower() == 'wongbot awaken':
         await message.channel.send(f'WONGBOT ACTIVATED')
     
+    elif 'no u' in message.content.lower():
+        await message.channel.send('no u')
+
     elif 'casino' in message.content.lower():
-        await message.channel.send(f'CASINO IN BETA')
+        await message.channel.send(f'CASINO IS HERE')
 
     elif 'anime' in message.content.lower() or 'manga' in message.content.lower():
-        await ban_protocol(message, 'WEEB DETECTED', 'WEEB')
+        await _ban_protocol(message, 'WEEB DETECTED', 'WEEB')
 
     elif 'catgirl' in message.content.lower():
-        await ban_protocol(message, 'NO CATGIRLS ALLOWED', 'DEGENERATE')
+        await _ban_protocol(message, 'NO CATGIRLS ALLOWED', 'DEGENERATE')
 
     elif 'bunnygirl' in message.content.lower():
-        await ban_protocol(message, 'NO BUNNYGIRLS ALLOWED', 'DEGENERATE')        
+        await _ban_protocol(message, 'NO BUNNYGIRLS ALLOWED', 'DEGENERATE')        
     
     elif 'sadge' in message.content.lower() or 'pog' in message.content.lower():
-        await ban_protocol(message, 'EXCESSIVE TWITCH MEMEING DETECTED', 'DEGENERATE')
-
-    # no u
+        await _ban_protocol(message, 'EXCESSIVE TWITCH MEMEING DETECTED', 'DEGENERATE')
 
     elif 'wongbot' in message.content.lower():
         if message.author.id != ADMIN:
             await message.channel.send(f'TF YOU JUST SAY ABOUT ME')
         else:
-            await i_mode(message.channel)
+            await _i_mode(message.channel)
 
     # no kpop
 
     await bot.process_commands(message)
 
-async def ban_protocol(message, reason, offender_type):
+async def _ban_protocol(message, reason, offender_type):
     if message.author.guild_permissions.administrator:
         return
     await message.channel.send(f'{reason}. BAN COMMENCING IN 10 SECONDS.')
@@ -104,7 +106,7 @@ async def ban_protocol(message, reason, offender_type):
     
     await message.channel.send(f'{message.author} PURGED, GOOD WORK TEAM')
 
-async def i_mode(channel):
+async def _i_mode(channel):
     print('i_mode enabled')
     while True:
         echo = input()
@@ -175,7 +177,7 @@ async def register(ctx):
         await ctx.send(f"REGISTRATION SUCCESSFUL. YOU NOW HAVE {starting_balance} WONGBUCKS")
         _save()
 
-# TODO: Log dailies instead of printing, declare constant elsewhere
+# TODO: Log dailies instead of printing, declare constants elsewhere
 daily_amount = 2000
 daily_wait = 12 # hours
 @bot.command(help='d a i l y')
@@ -190,7 +192,7 @@ async def daily(ctx):
         last_daily = datetime.strptime(user_accounts[str(request_id)]['last_daily'], '%m/%d/%Y, %H:%M:%S')
         time_since = now - last_daily
         if time_since >= timedelta(hours=daily_wait): # TODO: Refactor constant
-            await add_balance(request_id, daily_amount)
+            await _add_balance(request_id, daily_amount)
             now_string = now.strftime('%m/%d/%Y, %H:%M:%S')
             user_accounts[str(request_id)]['last_daily'] = now_string
             await ctx.send(f'Daily collected! {daily_amount} WONGBUCKS added to your account!')
@@ -226,8 +228,6 @@ async def top(ctx):
     await ctx.send(format_leaderboard(sorted_accounts, leaderboard_size))
 
 
-
-
 @bot.command()
 async def transfer(ctx, amount: int, other: discord.Member):
     global user_accounts
@@ -236,18 +236,18 @@ async def transfer(ctx, amount: int, other: discord.Member):
     guild = discord.utils.get(bot.guilds, name=GUILD)
     other_member = discord.utils.get(guild.members, id=other_id)
     if await check_account(ctx, primary_id) and await check_account(ctx, other_id):
-        if await subtract_balance(ctx, primary_id, amount):
+        if await _subtract_balance(ctx, primary_id, amount):
             # TODO: Add a confirm transaction prompt
-            await add_balance(other_id, amount)
+            await _add_balance(other_id, amount)
             await ctx.send(f'{amount} WONGBUCKS TRANSFERRED TO USER {other_member.nick.upper()}.')
             _save()
 
-async def add_balance(member_id, amount):
+async def _add_balance(member_id, amount):
     global user_accounts
     user_accounts[str(member_id)]['balance'] += amount
     _save()
 
-async def subtract_balance(ctx, member_id, amount, display_error=True):
+async def _subtract_balance(ctx, member_id, amount, display_error=True):
     global user_accounts
     current_balance = user_accounts[str(member_id)]['balance']
     if current_balance < amount or not current_balance:
@@ -258,7 +258,7 @@ async def subtract_balance(ctx, member_id, amount, display_error=True):
     _save()
     return True
 
-async def check_account(ctx, member_id, display_error=True):
+async def _check_account(ctx, member_id, display_error=True):
     global user_accounts
     guild = discord.utils.get(bot.guilds, name=GUILD)
     member = discord.utils.get(guild.members, id=member_id)
@@ -358,7 +358,7 @@ async def bet(ctx, *, question):
             await ctx.send("BET INVALID: You've already bet for the other option.")
             continue
 
-        if not await subtract_balance(ctx, bet_msg.author.id, amount):
+        if not await _subtract_balance(ctx, bet_msg.author.id, amount):
             continue
 
         # Update placed bets
@@ -397,7 +397,7 @@ async def bet(ctx, *, question):
     for bettor in placed_bets.keys():
         if placed_bets[bettor][0] == winner:
             winnings = placed_bets[bettor][1] + (placed_bets[bettor][1]/winning_pot*losing_pot)
-            await add_balance(bettor, int(winnings))
+            await _add_balance(bettor, int(winnings))
 
 # Begin bot session
 bot.run(TOKEN)
