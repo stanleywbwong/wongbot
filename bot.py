@@ -29,7 +29,6 @@ async def on_ready():
             type=discord.ActivityType.watching, 
             name=f'over {guild.name} closely'))
 
-    """
     # Load currency data from json
     global user_accounts
     try:
@@ -39,7 +38,9 @@ async def on_ready():
     except FileNotFoundError:
         print("Could not load user_accounts.json")
         user_accounts = {}
-    """
+
+    print("INFO: economy commands now deprecated")
+
 
 ############################
 ###### GENERAL EVENTS ######
