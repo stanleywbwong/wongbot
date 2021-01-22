@@ -92,8 +92,8 @@ async def on_message(message):
 
 # dm invite after kicking lol
 async def _ban_protocol(message, reason, offender_type):
-    if message.author.guild_permissions.administrator:
-        return
+    #if message.author.guild_permissions.administrator:
+    #    return
     await message.channel.send(f'{reason}. BAN COMMENCING IN 10 SECONDS.')
     for i in range(10, -1, -1):
         await message.channel.send(content=str(i), delete_after=1)
@@ -104,10 +104,10 @@ async def _ban_protocol(message, reason, offender_type):
     #await message.author.ban(delete_message_days=0)
 
     # kick
-    await message.author.kick()
+    #await message.author.kick()
 
     # remove from voice
-    #await message.author.edit(voice_channel=None)
+    await message.author.edit(voice_channel=None)
     
     await message.channel.send(f'{message.author} PURGED, GOOD WORK TEAM')
 
